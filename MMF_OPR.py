@@ -1,10 +1,20 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from __future__ import print_function
+
 import time
 import json
 import sqlite3
 import os.path
 import logging
 import traceback
+# the external settings file
+import my_settings_file
 
+from clint import arguments
+from clint.textui import puts, colored, indent
+from pyfiglet import Figlet
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -18,14 +28,9 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 from urllib.parse import unquote
 
-#global variables
-default_dowmnload_path = "<target chrome download files>//" #you should finifh the path with //
 myminifactory_urls = []
 myminifactory_archives = []
 myminifactory_images = []
-login = "your login"
-pwd = "your password"
-sqlite_db_name = "the target path for the sqlite db file"
 
 options = Options()
 #options.add_argument("--headless")
@@ -34,7 +39,7 @@ options.add_argument("--disable-notifications")
 options.add_argument('--no-sandbox')
 options.add_argument('--verbose')
 options.add_experimental_option("prefs", {
-        "download.default_directory": "{}".format(default_dowmnload_path),
+        "download.default_directory": "{}".format(my_settings_file.DEFAULT_DOWNLOAD_PAGE),
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
         "safebrowsing_for_trusted_sources_enabled": False,
@@ -46,6 +51,26 @@ options.add_argument('--disable-software-rasterizer')
 driver = webdriver.Chrome(service=Service(), options=options)
 
 logging.basicConfig(level=logging.INFO)
+
+def convert_array_to_dict(array):
+  dict_list = []
+  length = len(array)
+  if length % 2 != 0:
+    raise ValueError("Array length must be even to convert to dictionaries.")
+
+  for i in range(0, length, 2):
+    name = array[i]
+    value = array[i + 1]
+    dict_list.append({name: value})
+
+  return dict_list
+
+def get_value_by_name(dict_list, name):
+  for dictionary in dict_list:
+    if name in dictionary:
+      return dictionary[name]
+
+  return None
 
 def get_pages(url):
   #open the shared OPR library page
@@ -206,7 +231,7 @@ def download_archives():
         update_timestamp(collection["download_url"], timestamp)
 
 def update_timestamp(url, timestamp):
-  conn = sqlite3.connect(sqlite_db_name)
+  conn = sqlite3.connect(my_settings_file.SQLITE_DB_NAME)
   cur = conn.cursor()
   # Mise à jour de l'enregistrement avec le nouveau timestamp
   cur.execute(f'UPDATE MMF_archives SET downloaded_timestamp = ? WHERE download_url = ?', (timestamp, url))
@@ -224,11 +249,11 @@ def login_page(url):
   #click on the login button
   login_input = driver.find_element(By.NAME, "_username")
   #send the login name
-  login_input.send_keys("{}".format(login))
+  login_input.send_keys("{}".format(my_settings_file.LOGIN))
   #search the password input
   login_input = driver.find_element(By.NAME, "_password")
   #send the password
-  login_input.send_keys("{}".format(pwd))
+  login_input.send_keys("{}".format(my_settings_file.PWD))
   #click on the login button
   login_input = driver.find_element(By.ID, "_submit").click()
   time.sleep(3)
@@ -236,7 +261,7 @@ def login_page(url):
 
 def record_db():
   # Établir une connexion à la base de données (elle sera créée si elle n'existe pas)
-  conn = sqlite3.connect(sqlite_db_name)
+  conn = sqlite3.connect(my_settings_file.SQLITE_DB_NAME)
   # Créer un curseur pour exécuter des requêtes SQL
   cur = conn.cursor()
 
@@ -316,9 +341,9 @@ def load_myminifactory_objects():
   global myminifactory_archives
 
   #if the db file exist
-  if os.path.isfile(sqlite_db_name):
+  if os.path.isfile(my_settings_file.SQLITE_DB_NAME):
     logging.info("--- Load db in memory")
-    conn = sqlite3.connect(sqlite_db_name)
+    conn = sqlite3.connect(my_settings_file.SQLITE_DB_NAME)
     cur = conn.cursor()
 
     # load all records from the MMF_objects table
@@ -381,6 +406,12 @@ def load_myminifactory_objects():
     logging.debug("Une nouvelle db va être créée")
 
 def main():
+  #display the logo
+  f = Figlet(font='mini')
+  print(f.renderText('MMF-Downloader'))
+  #command line arguments
+  args = arguments.Args()
+  my_args = convert_array_to_dict(args.all)
   #inititalize the environement
   load_myminifactory_objects()
 
@@ -388,22 +419,33 @@ def main():
   login_page('https://www.myminifactory.com/login')
 
   #get the pages
-  get_pages('https://www.myminifactory.com/library?v=shared&s=all/onepagerules&page=1')
-  #get_pages('https://www.myminifactory.com/library?v=shared&s=13203')
-  #get_pages('https://www.myminifactory.com/library?v=shared&s=19247')
+  init_page = get_value_by_name(my_args, 'init_page')
+  if init_page and init_page != (""):
+    get_pages(init_page)
 
-  #get objects details
-  objects_details()
+    #get objects details
+    if get_value_by_name(my_args, 'details') != ("-n"):
+      objects_details()
+    else:
+      logging.info("No details switsh detected")
 
-  #record all details in the db
-  record_db()
+    #record all details in the db
+    if get_value_by_name(my_args, 'db') != ("-n"):
+      record_db()
+    else:
+      logging.info("No db recording swish detected")
 
-  #download objects
-  download_archives()
+    #download objects
+    if get_value_by_name(my_args, 'download') != ("-n"):
+      download_archives()
+    else:
+      logging.info("No archives downloading switsh detected")
+  else:
+    print("Please use the arument init_page to specify the starting page!")
 
   #quit
-  #time.sleep(60)
   driver.close()
+  print("Application ended normally")
 
 # Appel du point d'entrée principal
 if __name__ == "__main__":
