@@ -19,6 +19,7 @@ In the #global variables section, please appropriately change the values:
 - sqlite_db_name = "the target path for the SQLite DB file"
 
   Regarding Python libraries, you will need to install any missing ones.
+  Don't forget to properly set the my_settings_file.py. The file contains the global variables.
 
 ## Les détails en Français:
 Si, comme moi, vous êtes frustré de ne pas pouvoir télécharger facilement et efficacement vos fichiers sur MyMiniFactory chaque mois, voici un programme écrit en Python qui devrait vous faciliter la vie.
@@ -39,3 +40,4 @@ Dans la section #global variables, veuillez modifier les valeurs correspondantes
 - sqlite_db_name = "le chemin cible pour le fichier de base de données SQLite"
 
 En ce qui concerne les bibliothèques Python, veuillez installer celles qui vous manquent :)
+N'oubliez pas de remplir correctement le fichier my_setting_file.py. Ce fichier contient les variables globales de l'application.
