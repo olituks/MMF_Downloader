@@ -3,6 +3,7 @@ import json
 import sqlite3
 import os.path
 import logging
+import traceback
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -12,6 +13,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 from urllib.parse import unquote
 
@@ -55,25 +58,30 @@ def get_pages(url):
     analyse_current_page()
     try:
       # trouver si un element page suivante est present dans la page
-      next = driver.find_element(By.XPATH, "//a[text()='next']")
-      loggin.debug(next.get_attribute("outerHTML"))
+      #next = driver.find_element(By.XPATH, "//a[text()='next']")
+      next = wait.until(EC.visibility_of_element_located((By.XPATH, "//a[text()='next']")))
+      logging.debug(next.get_attribute("outerHTML"))
       link = next.get_attribute("href")
       link = unquote(link)
       if link:
         logging.info("next page: {}".format(link))
         driver.get('{}'.format(link))
         wait = WebDriverWait(driver, 10)
-        element = wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        wait.until(EC.visibility_of_element_located((By.XPATH, "//div[@class='object-card']/div/a")))
+        #element = wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
         #https://www.myminifactory.com/library?v=shared&s=all%2Fonepagerules&page=2
       else:
+        logging.error("next page XPATH was not found, I'm not allowed to discover all the pages.")
         break;
     except:
+      #traceback.print_exc()
+      #last page have no next link, so after the 10 sec the code raise a timeout error, skip it.
       break;
 
 def analyse_current_page():
   #declare the global variable
   global myminifactory_urls
-  logging.info("I will iterate through all the pages and compare the URLs I already have in memory.\nIf necessary, I will add new ones.")
+  #logging.info("I will iterate through all the pages and compare the URLs I already have in memory.\nIf necessary, I will add new ones.")
   logging.info("--- open a new page")
   objects = driver.find_elements(By.XPATH, "//div[@class='object-card']/div/a");
   for obj in objects:
@@ -89,14 +97,13 @@ def analyse_current_page():
     in_memory = False
     in_memory =  in_myminifactory_objects(obj_url)
     if in_memory:
-      logging.debug(f"--- Object {obj_list['url_id']} is already in memory, no need to extract details.")
+      logging.info(f"--- Object {obj_list['url_id']} is already in memory, no need to extract details.")
     else:
       myminifactory_urls.append(obj_list)
-      logging.debug(f"--- A new object {obj_list['url_id']} has been found. Extracting details is necessary.")
+      logging.info(f"--- A new object {obj_list['url_id']} has been found. Extracting details is necessary.")
 
     #show the myminifactory objects collection list
     #for col2 in myminifactory_objects:
-    logging.debug(col2)
 
 def in_myminifactory_objects(obj_url):
   #try to find the same obj url in memeory
@@ -104,7 +111,7 @@ def in_myminifactory_objects(obj_url):
   for my_col in myminifactory_urls:
     my_url = my_col["url"]
     my_obj_url = obj_url
-    logging.debug(f"    compare {my_id} & {my_url_id}")
+    logging.debug(f"    comparing {my_url} & {my_obj_url}")
     if  my_url == my_obj_url:
       found = True
       break
