@@ -5,10 +5,10 @@ If, like me, you are frustrated by the lack of a simple and efficient way to dow
 
 MMF_Downloader or MMFD allows you to:
 
-Browse the pages of available objects starting from a specific URL.
-Extract detailed information for each object into a SQLite database.
-Download the archive files for each object.
-That's all for now, more features will come later :)
+- Browse the pages of available objects starting from a specific URL.
+- Extract detailed information for each object into a SQLite database.
+- Download the archive files for each object.
+- That's all for now, more features will come later :)
 
 I want to clarify that this code does not allow you to pirate or download archives from MyMiniFactory that you haven't paid for or that are not shared with you. This code is intended to create a backup of your miniatures in case MyMiniFactory disappears.
 
