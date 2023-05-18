@@ -13,7 +13,7 @@ That's all for now, more features will come later :)
 I want to clarify that this code does not allow you to pirate or download archives from MyMiniFactory that you haven't paid for or that are not shared with you. This code is intended to create a backup of your miniatures in case MyMiniFactory disappears.
 
 In the #global variables section, please appropriately change the values:
-- default_download_path = "<target chrome download files>/" # make sure to finish the path with //
+- default_download_path = "chrome download files path//" # make sure to finish the path with // (NFS mount is working)
 - login = "your login"
 - pwd = "your password"
 - sqlite_db_name = "the target path for the SQLite DB file"
@@ -33,7 +33,7 @@ MMF_Downloader, également connu sous le nom de MMFD, vous permet de :
 Je tiens à préciser que ce code ne permet pas de pirater ou de télécharger des archives de MyMiniFactory que vous n'avez pas payées ou qui ne sont pas partagées avec vous. Ce code vous permet simplement de sauvegarder vos miniatures au cas où MyMiniFactory viendrait à disparaître.
 
 Dans la section #global variables, veuillez modifier les valeurs correspondantes :
-- default_download_path = "<chemin cible pour les fichiers téléchargés par Chrome>/" # assurez-vous de terminer le chemin par //
+- default_download_path = "chemin cible pour les fichiers téléchargés par Chrome//" # assurez-vous de terminer le chemin par // (mount NFS validé)
 - login = "votre identifiant"
 - pwd = "votre mot de passe"
 - sqlite_db_name = "le chemin cible pour le fichier de base de données SQLite"
