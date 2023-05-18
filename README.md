@@ -13,7 +13,6 @@ MMF_Downloader or MMFD allows you to:
 I want to clarify that this code does not allow you to pirate or download archives from MyMiniFactory that you haven't paid for or that are not shared with you. This code is intended to create a backup of your miniatures in case MyMiniFactory disappears.
 
 In the #global variables section, please appropriately change the values:
-
 - default_download_path = "chrome download files path//" # make sure to finish the path with // (NFS mount is working)
 - login = "your login"
 - pwd = "your password"
