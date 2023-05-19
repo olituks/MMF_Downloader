@@ -38,7 +38,7 @@ options.add_argument("--disable-notifications")
 options.add_argument('--no-sandbox')
 options.add_argument('--verbose')
 options.add_experimental_option("prefs", {
-        "download.default_directory": "{}".format(my_settings_file.DEFAULT_DOWNLOAD_PAGE),
+        "download.default_directory": "{}".format(my_settings.DEFAULT_DOWNLOAD_PAGE),
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
         "safebrowsing_for_trusted_sources_enabled": False,
@@ -201,13 +201,13 @@ def download_archives():
     #detect how many urls I need to download
     if int(collection["archive_timestamp"]) == 0:
       #test if the file is in the target directory or not.
-      logging.debug(my_settings_file.DEFAULT_DOWNLOAD_PAGE[:-1] + collection["archive_path"])
-      if not os.path.exists(my_settings_file.DEFAULT_DOWNLOAD_PAGE[:-1] + collection["archive_path"]):
+      logging.debug(my_settings.DEFAULT_DOWNLOAD_PAGE[:-1] + collection["archive_path"])
+      if not os.path.exists(my_settings.DEFAULT_DOWNLOAD_PAGE[:-1] + collection["archive_path"]):
         logging.info(f"--- download file :{collection['download_url']}")
         #download the file via javascript to avoid ads
         driver.execute_script("window.open(arguments[0], '_blank');", collection["download_url"])
         #attente infinie jusqu'à la fin de l'exécution du script javascript
-        while not os.path.exists(my_settings_file.DEFAULT_DOWNLOAD_PAGE + "/" + collection["archive_path"]):
+        while not os.path.exists(my_settings.DEFAULT_DOWNLOAD_PAGE + "/" + collection["archive_path"]):
           time.sleep(1)
         logging.info(f"--- The file {collection['archive_path']} was successfully downloaded")
         #record the downloaded_timestamp in the db
@@ -219,7 +219,7 @@ def download_archives():
         update_timestamp(collection["download_url"], timestamp)
 
 def update_timestamp(url, timestamp):
-  conn = sqlite3.connect(my_settings_file.SQLITE_DB_NAME)
+  conn = sqlite3.connect(my_settings.SQLITE_DB_NAME)
   cur = conn.cursor()
   # Mise à jour de l'enregistrement avec le nouveau timestamp
   cur.execute(f'UPDATE MMF_archives SET downloaded_timestamp = ? WHERE download_url = ?', (timestamp, url))
@@ -237,11 +237,11 @@ def login_page(url):
   #click on the login button
   login_input = driver.find_element(By.NAME, "_username")
   #send the login name
-  login_input.send_keys("{}".format(my_settings_file.LOGIN))
+  login_input.send_keys("{}".format(my_settings.LOGIN))
   #search the password input
   login_input = driver.find_element(By.NAME, "_password")
   #send the password
-  login_input.send_keys("{}".format(my_settings_file.PWD))
+  login_input.send_keys("{}".format(my_settings.PWD))
   #click on the login button
   login_input = driver.find_element(By.ID, "_submit").click()
   time.sleep(3)
@@ -249,7 +249,7 @@ def login_page(url):
 
 def record_db():
   # Établir une connexion à la base de données (elle sera créée si elle n'existe pas)
-  conn = sqlite3.connect(my_settings_file.SQLITE_DB_NAME)
+  conn = sqlite3.connect(my_settings.SQLITE_DB_NAME)
   # Créer un curseur pour exécuter des requêtes SQL
   cur = conn.cursor()
 
@@ -329,9 +329,9 @@ def load_myminifactory_objects():
   global myminifactory_archives
 
   #if the db file exist
-  if os.path.isfile(my_settings_file.SQLITE_DB_NAME):
+  if os.path.isfile(my_settings.SQLITE_DB_NAME):
     logging.info("--- Load db in memory")
-    conn = sqlite3.connect(my_settings_file.SQLITE_DB_NAME)
+    conn = sqlite3.connect(my_settings.SQLITE_DB_NAME)
     cur = conn.cursor()
 
     # load all records from the MMF_objects table
