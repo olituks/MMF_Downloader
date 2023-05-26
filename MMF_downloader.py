@@ -5,10 +5,13 @@ from __future__ import print_function
 
 import time
 import json
+import re
 import sqlite3
 import os.path
+import shutil
 import logging
 import traceback
+import argparse
 import my_settings
 
 from clint import arguments
@@ -80,7 +83,7 @@ def get_pages(url):
         #element = wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
         #https://www.myminifactory.com/library?v=shared&s=all%2Fonepagerules&page=2
       else:
-        logging.error("next page XPATH was not found, I'm not allowed to discover all the pages.")
+        logging.info("next page XPATH was not found")
         break;
     except:
       #traceback.print_exc()
@@ -92,8 +95,11 @@ def analyse_current_page():
   global myminifactory_urls
   #extracting the page number from the current page name
   title = driver.current_url
-  index_dernier_egale = title.rindex("=")
-  page_nbr = title[index_dernier_egale + 1:]
+  try:
+    index_dernier_egale = title.rindex("=")
+    page_nbr = title[index_dernier_egale + 1:]
+  except:
+    page_nbr = 1
   #---
   logging.info(f"--- open the page {page_nbr}")
   objects = driver.find_elements(By.XPATH, "//div[@class='object-card']/div/a");
@@ -112,11 +118,18 @@ def analyse_current_page():
     if in_memory:
       logging.info(f"--- Object {obj_list['url_id']} is already in memory, no need to extract details.")
     else:
-      myminifactory_urls.append(obj_list)
-      logging.info(f"--- A new object {obj_list['url_id']} has been found. Extracting details is necessary.")
+      logging.info(f"--- url_id: {obj_list['url_id']}")
+      if is_integer(obj_list['url_id']):
+        myminifactory_urls.append(obj_list)
+        logging.info(f"--- A new object {obj_list['url_id']} has been found. Extracting details is necessary.")
+      else:
+        logging.info(f"--- Not a valid url_id: {obj_list['url_id']}")
 
     #show the myminifactory objects collection list
     #for col2 in myminifactory_objects:
+    
+def is_integer(string):
+  return string.isdigit()
 
 def in_myminifactory_objects(obj_url):
   #try to find the same obj url in memeory
@@ -134,8 +147,8 @@ def objects_details():
   #for each url in the collection
   i = 0
   for obj_url in myminifactory_urls:
-    logging.debug("- in objects_details: myminifactory_urls iteration")
-    logging.debug(obj_url)
+    logging.debug(f"- in objects_details: myminifactory_urls iteration")
+    logging.debug(f" -------- get details about {obj_url}")
     #detect if details was already downloaded for this object
     result = False
     if len(myminifactory_archives) > 0:
@@ -155,7 +168,7 @@ def get_details(url_id, url):
   #global myminifactory_urls
   global myminifactory_archives
   global myminifactory_images
-
+  logging.info(f"get details on: {url}")
   #object page openeing and details is now extracted
   driver.get(url)
   wait = WebDriverWait(driver, 10)
@@ -193,7 +206,29 @@ def get_details(url_id, url):
     # Gestion de l'erreur lorsque l'élément n'est pas trouvé
     logging.error(f"XPATH was not found in {url}, please restart the app")
 
-def download_archives():
+def move_to_download_folder(destination_path, source_file):
+  if not os.path.exists(destination_path):
+    os.makedirs(destination_path)
+  shutil.move(source_file, destination_path)
+  
+def get_destination_path(destination_path, sub_folder, url_id):
+  conn = sqlite3.connect(my_settings.SQLITE_DB_NAME)
+  cur = conn.cursor()
+  # load all records from the MMF_objects table
+  cur.execute('SELECT name FROM MMF_objects WHERE url_id = ?', (url_id,))
+  results = cur.fetchall()
+  collection_name = ""
+  for row in results:
+    collection_name = row[0].replace("/", "_")
+    if len(results) > 1:
+      logging.info(f'--- potential issue - multiple url ({len(results)}) with the same url_id ({url_id}) in MMF_objects.')
+      break
+  conn.close()
+  dest_path = destination_path + sub_folder + "/" + collection_name
+  logging.info(f'--- destination path: {dest_path}')
+  return dest_path
+
+def download_archives(sub_folder):
   #inititlize global variable
   global myminifactory_archives
   #for each download_url in the collection
@@ -202,13 +237,15 @@ def download_archives():
     if int(collection["archive_timestamp"]) == 0:
       #test if the file is in the target directory or not.
       logging.debug(my_settings.DEFAULT_DOWNLOAD_PAGE[:-1] + collection["archive_path"])
-      if not os.path.exists(my_settings.DEFAULT_DOWNLOAD_PAGE[:-1] + collection["archive_path"]):
+      my_path = collection["archive_path"].replace("/", "_")
+      if not os.path.exists(my_settings.DEFAULT_DOWNLOAD_PAGE[:-1] + my_path):
         logging.info(f"--- download file :{collection['download_url']}")
         #download the file via javascript to avoid ads
         driver.execute_script("window.open(arguments[0], '_blank');", collection["download_url"])
         #attente infinie jusqu'à la fin de l'exécution du script javascript
-        while not os.path.exists(my_settings.DEFAULT_DOWNLOAD_PAGE + "/" + collection["archive_path"]):
+        while not os.path.exists(my_settings.DEFAULT_DOWNLOAD_PAGE[:-1] + my_path):
           time.sleep(1)
+        
         logging.info(f"--- The file {collection['archive_path']} was successfully downloaded")
         #record the downloaded_timestamp in the db
         timestamp = int(time.time())
@@ -217,6 +254,28 @@ def download_archives():
         #update the db object with the time stamp
         logging.debug(f"timestamp was updated in memory and db: {collection['archive_timestamp']} ")
         update_timestamp(collection["download_url"], timestamp)
+        #moving archives in the final destination path
+        destination_path = get_destination_path(my_settings.DEFAULT_DOWNLOAD_PAGE[:-1], sub_folder, collection['url_id'])
+        source_file = my_settings.DEFAULT_DOWNLOAD_PAGE[:-1] + my_path
+        if not os.path.exists(destination_path + "/" + my_path):
+          move_to_download_folder(destination_path, source_file)
+        else:
+          logging.info(f"--- the file already exist: {destination_path + '/' + my_path}")
+       
+'''
+def validate_directory_name(sub_folder):
+    # Caractères valides : lettres, chiffres, underscore, tiret, point
+    valid_chars_regex = r'[^\w\-.]'
+    # Caractère de remplacement pour les caractères invalides
+    replacement_char = '_'
+    # Longueur maximale de 255 caractères
+    max_length = 255
+    # Remplacement des caractères invalides par le caractère de remplacement
+    name = re.sub(valid_chars_regex, replacement_char, sub_folder)
+    # Tronquer le nom si nécessaire
+    name = name[:max_length]
+    return name
+'''
 
 def update_timestamp(url, timestamp):
   conn = sqlite3.connect(my_settings.SQLITE_DB_NAME)
@@ -227,7 +286,6 @@ def update_timestamp(url, timestamp):
   conn.commit()
   # Fermeture de la connexion
   conn.close()
-
 
 def login_page(url):
   driver.get('{}'.format(url))
@@ -281,7 +339,7 @@ def record_db():
     #test if a record with the same id already exist in the db
     cur.execute(f"SELECT COUNT(*) FROM MMF_objects WHERE url_id = ?", (objet["url_id"],))
     if cur.fetchone()[0] == 0:
-      logging.debug("get detail on :{}".format(collection["url"]))
+      logging.debug("get detail on :{}".format(objet["url"]))
       # Insertion de l'objet dans la table
       cur.execute(f'INSERT INTO MMF_objects VALUES (?, ?, ?)', (
         objet['url_id'],
@@ -293,7 +351,7 @@ def record_db():
     #test if a record with the same id already exist in the db
     cur.execute(f"SELECT COUNT(*) FROM MMF_images WHERE img_url = ?", (objet["url"],))
     if cur.fetchone()[0] == 0:
-      logging.debug("get detail on :{}".format(collection["url"]))
+      logging.debug("get detail on :{}".format(objet["url"]))
       # Insertion de l'objet dans la table
       cur.execute(f'INSERT INTO MMF_images VALUES (?, ?, ?)', (
         objet['url_id'],
@@ -305,7 +363,7 @@ def record_db():
     #test if a record with the same id already exist in the db
     cur.execute(f"SELECT COUNT(*) FROM MMF_archives WHERE download_url = ?", (objet["download_url"],))
     if cur.fetchone()[0] == 0:
-      logging.debug("get detail on :{}".format(collection["url"]))
+      logging.debug("get detail on :{}".format(objet["download_url"]))
       # Insertion de l'objet dans la table
       cur.execute(f'INSERT INTO MMF_archives VALUES (?, ?, ?, ?, ?, ?)', (
         objet['url_id'],
@@ -398,27 +456,12 @@ def is_valid_url(text):
   return all([result.scheme, result.netloc])
 
 def display_the_command_line_help():
-  """Usage:
-  naval_fate ship new <name>...
-  naval_fate ship <name> move <x> <y> [--speed=<kn>]
-  naval_fate ship shoot <x> <y>
-  naval_fate mine (set|remove) <x> <y> [--moored|--drifting]
-  naval_fate -h | --help
-  naval_fate --version
-
-Options:
-  -h --help     Show this screen.
-  --version     Show version.
-  --speed=<kn>  Speed in knots [default: 10].
-  --moored      Moored (anchored) mine.
-  --drifting    Drifting mine."""
-
   print("Usage:")
   print("  MMF_downloader.py 'https://www.myminifa...gerules&page=1'")
   print("  MMF_downloader.py 'https://www.myminifa...gerules&page=1' --nodetails --nodb")
   print("")
   print("Options:")
-  print("  --help          display this help only")
+  print("  --h             display this help only")
   print("  --nodetails     No details extraction")
   print("  --nodb          No data will be saved in the db")
   print("  --nodownload    No archives will be downloaded")
@@ -427,16 +470,22 @@ Options:
   print("")
 
 def main():
+  #parse command line arguments
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--h', action='store_true', default=False, help='display this help only')
+  parser.add_argument('--nodetails', action='store_true', default=False, help='No details extraction')
+  parser.add_argument('--nodb', action='store_true', default=False, help='No data will be saved in the db')
+  parser.add_argument('--nodownload', action='store_true', default=False, help='No archives will be downloaded')
+  parser.add_argument('--url', required=True)
+  args = parser.parse_args()
   #display the logo
   f = Figlet(font='mini')
   print(f.renderText('MMF-Downloader'))
   #command line arguments
-  args = arguments.Args()
   #display the command line help
   display_the_command_line_help()
-
-  if not "--help" in args:
-
+  
+  if not args.h:
     #inititalize the environement
     load_myminifactory_objects()
 
@@ -444,29 +493,33 @@ def main():
     login_page('https://www.myminifactory.com/login')
 
     #get the pages
-    #init_page = get_value_by_name(my_args, 'init_page')
-    init_page = args[0]
+    init_page = args.url
     if init_page and is_valid_url(init_page):
       get_pages(init_page)
 
       #get objects details
       #if get_value_by_name(my_args, '--nodetails') != ("N"):
-      if not "--nodetails" in args:
+      if not args.nodetails:
         objects_details()
 
       #record all details in the db
-      if not "--nodb" in args:
+      if not args.nodb:
         record_db()
 
       #download objects
-      if not "--nodownload" in args:
-        download_archives()
+      if not args.nodownload:
+        my_url = unquote(args.url)
+        start_index = my_url.rfind('/') + 1  # Trouver l'indice du dernier '/'
+        end_index = my_url.rfind('&page') if '&page' in my_url else len(my_url)  # Trouver l'indice de '&' ou la fin de la chaîne
+        sub_folder = my_url[start_index:end_index].replace("/", "_")
+        download_archives(sub_folder)
+        
     else:
-      print("Please use a valid url to parse!")
+      logging.error("Please use a valid url to parse!")
 
   #quit
   driver.close()
-  print("Application ended normally")
+  logging.info("Application ended normally")
 
 # Appel du point d'entrée principal
 if __name__ == "__main__":
